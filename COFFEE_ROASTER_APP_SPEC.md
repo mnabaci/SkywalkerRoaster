@@ -9,7 +9,7 @@ Build a local-first, offline-capable web application for automated control and m
 - **Frontend:** React + TypeScript (real-time graphs, controls, history dashboard) — browser-first
 - **Database:** SQLite (local, offline-first, all roast data stored)
 - **ML:** scikit-learn or TensorFlow Lite (local temperature offset calibration, bean profile learning)
-- **Packaging:** Browser-only app. Run the server locally and open the UI in a browser (no Electron required).
+- **Packaging:** Browser-first recommended; Electron packaging is optional for desktop distribution (macOS requires code signing if packaged).
 
 ---
 
@@ -318,8 +318,8 @@ I integrated the 16 suggestions you provided directly into the original spec sec
 
 ## 20. FINAL NOTES
 
-This merged document preserves the original spec's content and structure while integrating your 16 suggestions inline where they belong. If you want, I can now:
-- Run a follow-up commit to add a short example Python module that demonstrates the threading model, SSE endpoint, and minimal PID loop, or
-- Re-run tests to validate READ parsing against your ESP32 using a serial loopback simulator if you prefer.
+This merged document preserves the original spec's content and structure while integrating your suggestions inline where they belong. If you want, I can now:
+- Produce a follow-up commit adding an example Python module that demonstrates the threading model, SSE endpoint, and minimal PID loop, or
+- Produce a short safety-first test plan (dry-run checklist) to validate READ parsing and control commands without roasting.
 
 Which would you like me to do next?
