@@ -7,6 +7,8 @@
 // Protocol version: bump together with Tc4SkywalkerDriver and firmware/skywalker-tc4/README.md
 // whenever the serial protocol changes (see the firmware-change skill).
 const char* PROTOCOL_VERSION = "1";
+// Serial is read without blocking and every received line runs as its own command,
+// so commands sent close together are no longer merged and lost.
 
 // Pin Definitions
 const int txPin = 23;
@@ -297,10 +299,26 @@ void handleREAD() {
   lastEventTime = micros();
 }
 
-void getArtisanMessage() {
-  if (Serial.available() > 0) {
-    String input = Serial.readString();
+// One command per line. Longer lines are dropped whole rather than run truncated.
+const int COMMAND_LINE_MAX = 32;
+// A line with no line ending runs once no byte has arrived for this long, like the old
+// Serial.readString() timeout, so senders that don't end commands with \n keep working.
+const unsigned long LINE_IDLE_MS = 100;
+char lineBuffer[COMMAND_LINE_MAX];
+int lineLength = 0;
+bool lineTooLong = false;
+unsigned long lastByteMs = 0;
 
+void finishLine() {
+  if (lineLength > 0 && !lineTooLong) {
+    lineBuffer[lineLength] = '\0';
+    executeCommand(String(lineBuffer));
+  }
+  lineLength = 0;
+  lineTooLong = false;
+}
+
+void executeCommand(String input) {
     uint8_t value = 0;
     input.trim();
     int split = input.indexOf(';');
@@ -336,6 +354,24 @@ void getArtisanMessage() {
     } else if (command == "VERSION") {  //Lets the driver refuse to roast on a protocol mismatch
       Serial.println(PROTOCOL_VERSION);
     }
+}
+
+// Never waits: takes whatever bytes have arrived and runs each complete line.
+// Called several times per loop() so replies don't wait for a whole roaster cycle.
+void getArtisanMessage() {
+  while (Serial.available() > 0) {
+    char c = Serial.read();
+    lastByteMs = millis();
+    if (c == '\n' || c == '\r') {
+      finishLine();
+    } else if (lineLength < COMMAND_LINE_MAX - 1) {
+      lineBuffer[lineLength++] = c;
+    } else {
+      lineTooLong = true;
+    }
+  }
+  if ((lineLength > 0 || lineTooLong) && millis() - lastByteMs > LINE_IDLE_MS) {
+    finishLine();
   }
 }
 
@@ -390,7 +426,6 @@ void setup() {
   //The idea is that the loop will handle any requests from serial.
   //While the timer which runs every 10ms will send the control message to the roaster.
   Serial.begin(115200);
-  Serial.setTimeout(100);
   pinMode(txPin, OUTPUT);
   pinMode(rxPin, INPUT);
   shutdown();
@@ -408,7 +443,11 @@ void loop() {
 
   failSafeChecks();
 
+  getArtisanMessage();
+
   sendRoasterMessage();
+
+  getArtisanMessage();
 
   getRoasterMessage();
 
