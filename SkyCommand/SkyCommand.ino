@@ -4,6 +4,10 @@
 
 #include <limits.h>
 
+// Protocol version: bump together with Tc4SkywalkerDriver and firmware/skywalker-tc4/README.md
+// whenever the serial protocol changes (see the firmware-change skill).
+const char* PROTOCOL_VERSION = "1";
+
 // Pin Definitions
 const int txPin = 23;
 const int rxPin = 22;
@@ -75,6 +79,10 @@ void pulsePin(int pin, int duration) {
 }
 
 void sendRoasterMessage() {
+  // NOTE: tried wrapping this in noInterrupts()/interrupts() to protect the bit-banged
+  // timing from radio-interrupt jitter, but on ESP32's FreeRTOS this starves the scheduler
+  // on every single loop() call and trips the task watchdog into a reboot loop. Reverted.
+
   //send Preamble
   pulsePin(txPin, 7500);
   delayMicroseconds(3800);
@@ -325,6 +333,8 @@ void getArtisanMessage() {
       handleCHAN();
     } else if (command == "UNITS") {
       if (split >= 0) CorF = input.charAt(split + 1);
+    } else if (command == "VERSION") {  //Lets the driver refuse to roast on a protocol mismatch
+      Serial.println(PROTOCOL_VERSION);
     }
   }
 }
@@ -361,6 +371,11 @@ void failSafeChecks() {
     //TODO: Maybe consider moving this logic to the interrupt handler
     //That way if the arduino is having issues, the interrupt handler
     //Will stop sending messages to the roaster and it'll shut down.
+    //
+    // NOTE: tried eStop() here (heat 0, fan 100) to actively vent residual heat on a lost
+    // connection. Reverted: this condition is indistinguishable from "nothing has connected
+    // since boot yet", which is the board's normal resting state - it made the fan cycle on
+    // by itself any time nothing was actively polling it, not just during a real roast.
     shutdown();  //Turn everything off if the last control message is too old
   }
 
